@@ -1,0 +1,68 @@
+// The database schema: every table, column and relation. `npm run migrate` turns changes here
+// into a SQL migration under prisma/migrations, and `prisma generate` turns it into a typed
+// client in src/generated/prisma. Weather and events are not stored here: they change by the
+// hour and belong to the upstream APIs. Only the user's own choices are kept.
+
+// The typed client. Written as TypeScript ES modules with .ts imports, so Node can run it
+// directly by stripping the types, like the rest of the server.
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "ts"
+}
+
+// PostgreSQL. The connection URL is not here: prisma.config.ts gives it to the CLI, and
+// src/db.ts gives it to the driver adapter at run time.
+datasource db {
+  provider = "postgresql"
+}
+
+// One browser's dashboard. The browser keeps the key; the server finds the owner by it.
+model Owner {
+  id         Int         @id @default(autoincrement())
+  // A random UUID, made by the server on the first visit.
+  key        String      @unique @db.Uuid
+  createdAt  DateTime    @default(now())
+  // Owners not seen for 30 days are removed, with their favourites.
+  lastSeenAt DateTime    @default(now())
+  favourites Favourite[]
+}
+
+// How much room a card takes on the dashboard.
+enum CardSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+// One saved city on one owner's dashboard.
+model Favourite {
+  id        Int      @id @default(autoincrement())
+  ownerId   Int
+  // Deleting the owner deletes its favourites.
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // Open-Meteo's geocoding id for the place.
+  placeId   Int
+  // "Manila"
+  name      String
+  // "Metro Manila"; not every place has one.
+  region    String?
+  // "Philippines"
+  country   String
+  latitude  Float
+  longitude Float
+  // "Asia/Manila", for local times on the card.
+  timezone  String
+  size      CardSize @default(MEDIUM)
+  // Order on the dashboard, 0 first.
+  position  Int
+  createdAt DateTime @default(now())
+
+  // A city is saved once per owner.
+  @@unique([ownerId, placeId])
+  // The dashboard reads an owner's favourites in order.
+  @@index([ownerId, position])
+}

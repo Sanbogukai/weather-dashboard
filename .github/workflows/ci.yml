@@ -1,0 +1,52 @@
+# Runs the server's type check and tests against a real PostgreSQL 18 on every push and pull
+# request, so a break shows as a red cross on GitHub instead of being found later. A client job
+# joins it in phase 3. There is no Ticketmaster key here on purpose: the server must run
+# without it, and no test may reach the real API.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    # Every command below runs inside server/.
+    defaults:
+      run:
+        working-directory: server
+    # A throwaway PostgreSQL 18 for the tests, reachable on localhost:5432.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: weather
+          POSTGRES_PASSWORD: weather
+          POSTGRES_DB: weather_test
+        ports:
+          - 5432:5432
+        # Waits until the database accepts connections before the steps start.
+        options: >-
+          --health-cmd "pg_isready -U weather"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    # The tests read DATABASE_URL; the name ends in _test, as the test guard requires.
+    env:
+      DATABASE_URL: postgresql://weather:weather@localhost:5432/weather_test
+    steps:
+      # Fetches the repository's code.
+      - uses: actions/checkout@v4
+      # Installs the Node version pinned in .node-version, and caches npm downloads
+      # between runs using the lock file as the key.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      # Installs exactly what the lock file lists; postinstall generates the Prisma client.
+      - run: npm ci
+      # tsc --noEmit: Node never checks types, so this step does.
+      - run: npm run typecheck
+      # Vitest, once, without watching. Its global setup applies the migrations first.
+      - run: npm test
