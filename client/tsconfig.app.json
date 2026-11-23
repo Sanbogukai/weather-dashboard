@@ -1,0 +1,47 @@
+// Type-checking settings for the app code in src/ (the browser side).
+// Vite does the bundling; tsc only checks, so noEmit is on.
+{
+  "compilerOptions": {
+    // Where tsc -b keeps its notes between runs, so a second check is faster.
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    // The JavaScript version the code is written against; current browsers support it.
+    "target": "es2023",
+    // The built-in types available: the language itself plus the browser's DOM.
+    "lib": ["ES2023", "DOM"],
+    // Modern import/export syntax, left for Vite to bundle.
+    "module": "esnext",
+    // Adds Vite's own types, such as import.meta.env. Nothing else from @types loads.
+    "types": ["vite/client"],
+    // Lets CSS and other non-code files be imported.
+    "allowArbitraryExtensions": true,
+    // Skips checking the .d.ts files of packages; their authors already did.
+    "skipLibCheck": true,
+
+    // Resolve imports the way a bundler does.
+    "moduleResolution": "bundler",
+    // Imports keep their .ts / .tsx extension, as on the server. Needs noEmit.
+    "allowImportingTsExtensions": true,
+    // Type-only imports must say `import type`, so they are erased cleanly.
+    "verbatimModuleSyntax": true,
+    // Treats every file as a module, even one with no imports.
+    "moduleDetection": "force",
+    // tsc checks only; Vite produces the real output.
+    "noEmit": true,
+    // JSX compiles to React's automatic runtime, so files need no `import React`.
+    "jsx": "react-jsx",
+
+    // All the strict checks, written out even though TypeScript 7 turns them on by default.
+    "strict": true,
+    // Reading array[i] or record[key] gives `T | undefined`, so a missing item must be handled.
+    "noUncheckedIndexedAccess": true,
+    // Flags variables and parameters that are never used.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    // Only TypeScript that is plain JavaScript plus types: no enum, no namespace. Same rule as the server.
+    "erasableSyntaxOnly": true,
+    // A switch case that runs into the next one without `break` is an error.
+    "noFallthroughCasesInSwitch": true
+  },
+  // The app code, plus the shared types the server uses too.
+  "include": ["src", "../shared"]
+}

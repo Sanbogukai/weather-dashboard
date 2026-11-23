@@ -1,7 +1,8 @@
-# Runs the server's type check and tests against a real PostgreSQL 18 on every push and pull
-# request, so a break shows as a red cross on GitHub instead of being found later. A client job
-# joins it in phase 3. There is no Ticketmaster key here on purpose: the server must run
-# without it, and no test may reach the real API.
+# Runs on every push and pull request, so a break shows as a red cross on GitHub instead of
+# being found later. Two jobs run side by side: the server's type check and tests against a real
+# PostgreSQL 18, and the client's type check, tests and production build. There is no
+# Ticketmaster key here on purpose: the server must run without it, and no test may reach the
+# real API.
 name: CI
 
 on:
@@ -50,3 +51,27 @@ jobs:
       - run: npm run typecheck
       # Vitest, once, without watching. Its global setup applies the migrations first.
       - run: npm test
+
+  client:
+    runs-on: ubuntu-latest
+    # Every command below runs inside client/.
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      # Fetches the repository's code; the client also reads shared/types.ts from it.
+      - uses: actions/checkout@v4
+      # The same Node version as the server, with npm downloads cached on the client's lock file.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      # Installs exactly what the lock file lists.
+      - run: npm ci
+      # tsc -b over the app and the Vite config.
+      - run: npm run typecheck
+      # Vitest, once, on the pure logic modules.
+      - run: npm test
+      # The production build Render will serve, so a build break shows here first.
+      - run: npm run build
