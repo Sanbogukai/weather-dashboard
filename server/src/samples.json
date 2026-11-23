@@ -1,0 +1,32 @@
+[
+  {
+    "placeId": 1701668,
+    "name": "Manila",
+    "region": "National Capital Region",
+    "country": "Philippines",
+    "latitude": 14.6042,
+    "longitude": 120.9822,
+    "timezone": "Asia/Manila",
+    "size": "LARGE"
+  },
+  {
+    "placeId": 6094817,
+    "name": "Ottawa",
+    "region": "Ontario",
+    "country": "Canada",
+    "latitude": 45.41117,
+    "longitude": -75.69812,
+    "timezone": "America/Toronto",
+    "size": "MEDIUM"
+  },
+  {
+    "placeId": 1850147,
+    "name": "Tokyo",
+    "region": "Tokyo",
+    "country": "Japan",
+    "latitude": 35.6895,
+    "longitude": 139.69171,
+    "timezone": "Asia/Tokyo",
+    "size": "SMALL"
+  }
+]

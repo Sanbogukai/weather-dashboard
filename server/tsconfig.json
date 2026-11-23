@@ -17,6 +17,8 @@
     "erasableSyntaxOnly": true,
     // Type-only imports must say `import type`, so Node knows it can delete them.
     "verbatimModuleSyntax": true,
+    // Lets code import .json files (with { type: 'json' }), such as the sample cities.
+    "resolveJsonModule": true,
     // All the strict checks, such as no implicit any and null checks.
     "strict": true,
     // Reading array[i] or obj[key] may give undefined, so the code must handle it.

@@ -11,6 +11,14 @@ import type { Db } from './db.ts';
 import type { ApiError } from '../../shared/types.ts';
 // The expected-failure type, whose status, code and issues go into the answer.
 import { ApiFailure } from './errors.ts';
+// The in-memory cache for upstream answers.
+import { type Cache, createCache } from './cache.ts';
+// The Open-Meteo client and its type.
+import { type OpenMeteo, createOpenMeteo } from './openMeteo.ts';
+// The API routes.
+import { apiRouter } from './routes.ts';
+// The Ticketmaster client's type; the client itself is built in index.ts, only with a key.
+import type { Ticketmaster } from './ticketmaster.ts';
 
 // The largest JSON body accepted. A favourite is a place and a size, so 16 kB is plenty and
 // stops anyone posting megabytes at the API.
@@ -25,11 +33,29 @@ const HTTP_UNAVAILABLE = 503;
 // visitor's address (from X-Forwarded-For) instead of the proxy's, for the rate limits.
 const TRUSTED_PROXIES = 3;
 
-// What the caller passes in. Only the database is required for now; later phases add the
-// clock, the upstream clients and the limits, so tests can swap each one.
+// The default limits: new owners per IP per hour, and upstream-backed requests (places,
+// weather, events) per owner per minute.
+const OWNER_LIMIT = 10;
+const UPSTREAM_LIMIT = 120;
+
+// What the caller passes in. Only the database is required; everything else has a real default,
+// and tests swap any of them (a fixed clock, fake upstream clients, small limits).
 export interface AppOptions {
   db: Db;
+  // The clock, read for every "now" the app needs.
+  now?: () => Date;
+  // City search and forecasts.
+  openMeteo?: OpenMeteo;
+  // Events; null when there is no API key, which turns the events route into a 503.
+  ticketmaster?: Ticketmaster | null;
+  // The upstream cache; one per app by default.
+  cache?: Cache;
+  ownerLimit?: number;
+  upstreamLimit?: number;
 }
+
+// The options with every default filled in, as the routes see them.
+export type AppDeps = Required<AppOptions>;
 
 // Builds the error body every failure uses.
 function errorBody(code: string, message: string, issues?: ApiError['error']['issues']): ApiError {
@@ -39,6 +65,19 @@ function errorBody(code: string, message: string, issues?: ApiError['error']['is
 
 // Returns a new, fully wired app.
 export function createApp(options: AppOptions): Express {
+  // The clock first, because the default cache reads it too.
+  const now = options.now ?? (() => new Date());
+  // Each option the caller left out gets its real default.
+  const deps: AppDeps = {
+    db: options.db,
+    now,
+    openMeteo: options.openMeteo ?? createOpenMeteo(),
+    ticketmaster: options.ticketmaster ?? null,
+    cache: options.cache ?? createCache({ now }),
+    ownerLimit: options.ownerLimit ?? OWNER_LIMIT,
+    upstreamLimit: options.upstreamLimit ?? UPSTREAM_LIMIT,
+  };
+
   // Creates the app that every middleware and route below is attached to.
   const app = express();
 
@@ -55,7 +94,7 @@ export function createApp(options: AppOptions): Express {
   app.get('/api/health', async (_req, res) => {
     try {
       // SELECT 1 needs no table; it only proves the connection works.
-      await options.db.$queryRaw`SELECT 1`;
+      await deps.db.$queryRaw`SELECT 1`;
       // The database answered.
       res.json({ ok: true });
     } catch (err) {
@@ -65,6 +104,9 @@ export function createApp(options: AppOptions): Express {
       res.status(HTTP_UNAVAILABLE).json({ ok: false });
     }
   });
+
+  // Owners, favourites, places, weather and events.
+  app.use('/api', apiRouter(deps));
 
   // Unknown API routes get JSON, not Express's HTML page. It runs only when no route
   // above matched, because a matching route ends the request.
@@ -77,8 +119,9 @@ export function createApp(options: AppOptions): Express {
   const handleError: ErrorRequestHandler = (err, _req, res, _next) => {
     // Our own expected failures carry their status, code and issues.
     if (err instanceof ApiFailure) {
-      // Upstream and other server-side failures are logged; client mistakes (4xx) are not.
-      if (err.status >= HTTP_SERVER_ERROR) console.error(err.message);
+      // Upstream failures are logged, to spot an outage; client mistakes (4xx) and the expected
+      // "events are not set up" answer are not, or every card would add a log line.
+      if (err.code.startsWith('upstream_')) console.error(`${err.code}: ${err.message}`);
       // Sends the failure as it was described.
       res.status(err.status).json(errorBody(err.code, err.message, err.issues));
       return;

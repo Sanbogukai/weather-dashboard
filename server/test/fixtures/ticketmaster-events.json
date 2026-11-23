@@ -1,0 +1,35 @@
+{
+  "_embedded": {
+    "events": [
+      {
+        "name": "Ottawa Senators vs. Toronto Maple Leafs",
+        "type": "event",
+        "id": "vvG1fZ9fake001",
+        "url": "https://www.ticketmaster.ca/event/fake001",
+        "locale": "en-us",
+        "dates": {
+          "start": { "localDate": "2026-11-25", "localTime": "19:00:00", "dateTBD": false, "timeTBA": false },
+          "timezone": "America/Toronto",
+          "status": { "code": "onsale" }
+        },
+        "classifications": [{ "segment": { "id": "KZFzniwnSyZfZ7v7nE", "name": "Sports" } }],
+        "_embedded": {
+          "venues": [{ "name": "Canadian Tire Centre", "id": "KovZpZAFnIEA", "city": { "name": "Ottawa" } }]
+        }
+      },
+      {
+        "name": "Winter Lights Festival",
+        "type": "event",
+        "id": "vvG1fZ9fake002",
+        "url": "https://www.ticketmaster.ca/event/fake002",
+        "locale": "en-us",
+        "dates": {
+          "start": { "localDate": "2026-11-28", "dateTBD": false, "timeTBA": true, "noSpecificTime": true },
+          "status": { "code": "onsale" }
+        }
+      }
+    ]
+  },
+  "_links": { "self": { "href": "/discovery/v2/events.json?size=6&page=0" } },
+  "page": { "size": 6, "totalElements": 2, "totalPages": 1, "number": 0 }
+}

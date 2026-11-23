@@ -42,22 +42,41 @@ export interface Favourite extends Place {
   position: number;
 }
 
+// The icon the client draws for a weather code. Clear and partly cloudy have a night version.
+export type WeatherIcon =
+  | 'clear-day'
+  | 'clear-night'
+  | 'partly-cloudy-day'
+  | 'partly-cloudy-night'
+  | 'cloudy'
+  | 'fog'
+  | 'drizzle'
+  | 'rain'
+  | 'snow'
+  | 'thunder';
+
+// The conditions part of every weather entry: the WMO code Open-Meteo sent, and the label and
+// icon the server's weatherCodes.ts gives it.
+export interface Conditions {
+  code: number;
+  label: string;
+  icon: WeatherIcon;
+}
+
 // The weather for one place, in metric units; the client converts to °F when asked.
 export interface Weather {
-  current: {
+  current: Conditions & {
     // Local time of the reading, ISO without an offset, in the place's own time zone.
     time: string;
     temperature: number;
     feelsLike: number;
-    // WMO weather code; the client turns it into a label and an icon.
-    code: number;
     isDay: boolean;
     windKmh: number;
   };
   // The next 12 hours, one entry per hour.
-  hourly: Array<{ time: string; temperature: number; code: number; isDay: boolean }>;
+  hourly: Array<Conditions & { time: string; temperature: number; isDay: boolean }>;
   // Today and the next 6 days.
-  daily: Array<{ date: string; high: number; low: number; code: number }>;
+  daily: Array<Conditions & { date: string; high: number; low: number }>;
 }
 
 // One upcoming event near a place.
