@@ -12,23 +12,14 @@ import { createDb } from './db.ts';
 import { loadEnv } from './env.ts';
 // The stale-owner clean-up and the length of a day.
 import { DAY_MS, deleteStaleOwners } from './owners.ts';
-// The events client, built only when there is a key.
-import { createTicketmaster } from './ticketmaster.ts';
 
 // Stops here, with every bad variable named, if the environment is wrong.
 const env = loadEnv();
 
-// Events need the Ticketmaster key; weather does not. Say so once, at start-up, without
-// printing the key or its absence anywhere a visitor could see.
-if (!env.TICKETMASTER_API_KEY) console.warn('TICKETMASTER_API_KEY is not set: events are off, weather still works');
-
 // One client for the whole app.
 const db = createDb(env.DATABASE_URL);
-// The events client when the key is set, otherwise null, which the events route answers
-// with 503 events_not_configured.
-const ticketmaster = env.TICKETMASTER_API_KEY ? createTicketmaster({ apiKey: env.TICKETMASTER_API_KEY }) : null;
-// The app over that database, with the real clock, Open-Meteo and cache (the defaults).
-const app = createApp({ db, ticketmaster });
+// The app over that database, with the real clock, upstream clients and cache (the defaults).
+const app = createApp({ db });
 
 // Removes stale owners and logs how many. A failure is logged and the server keeps running;
 // the next day's run tries again.

@@ -33,13 +33,14 @@ const HOURLY_FIELDS = 'temperature_2m,weather_code,is_day';
 const DAILY_FIELDS = 'weather_code,temperature_2m_max,temperature_2m_min';
 
 // One geocoding result. Small places can lack a country or a time zone; those are skipped,
-// because a card needs both.
+// because a card needs both. `country_code` is the two-letter code, such as "PH".
 const geoResult = z.object({
   id: z.number().int(),
   name: z.string(),
   latitude: z.number(),
   longitude: z.number(),
   country: z.string().optional(),
+  country_code: z.string().optional(),
   admin1: z.string().optional(),
   timezone: z.string().optional(),
 });
@@ -121,13 +122,15 @@ export function createOpenMeteo({ fetchFn = fetch, timeoutMs = UPSTREAM_TIMEOUT_
       const results = answer.results ?? [];
       // flatMap with [] drops the results a card cannot use, and maps the rest.
       return results.flatMap((result): Place[] =>
-        result.country && result.timezone
+        result.country && result.country_code && result.timezone
           ? [
               {
                 placeId: result.id,
                 name: result.name,
                 region: result.admin1 ?? null,
                 country: result.country,
+                // Upper case, as the holidays service and the route expect.
+                countryCode: result.country_code.toUpperCase(),
                 latitude: result.latitude,
                 longitude: result.longitude,
                 timezone: result.timezone,

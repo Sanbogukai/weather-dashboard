@@ -24,16 +24,14 @@ export function weekdayLabel(date: string, locale?: string): string {
   return new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(wallClock(date))
 }
 
-// "Tue 25 Nov" or "Tue 25 Nov, 7:00 PM" for an event.
-export function eventWhen(date: string, time: string | null, locale?: string): string {
-  // The date part, always shown.
+// "Wed, Nov 25" for a holiday, or "Wed, Nov 25 – Sun, Nov 29" for a festival over several days.
+export function dayRange(date: string, endDate: string | null, locale?: string): string {
+  // The day's format, read as a wall-clock date so no time zone moves it.
   const day = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
-  // Events without a set time show the date only.
-  if (time === null) return day.format(wallClock(date))
-  // The time part, from the date and time joined.
-  const clock = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })
-  const when = wallClock(`${date}T${time}`)
-  return `${day.format(when)}, ${clock.format(when)}`
+  const first = day.format(wallClock(date))
+  // One day: no end, or an end on the same day.
+  if (endDate === null || endDate === date) return first
+  return `${first} – ${day.format(wallClock(endDate))}`
 }
 
 // The time right now in a place, such as "2:05 PM", for the card's header.

@@ -3,7 +3,7 @@
 // code, so the page can pick its own wording for it (see messages.ts).
 
 // The shapes the server sends and accepts. `import type` is erased before the code runs.
-import type { ApiError as ErrorBody, CardSize, EventItem, Favourite, Place, Upstream, Weather } from '../../shared/types.ts'
+import type { ApiError as ErrorBody, CardSize, Favourite, Holiday, Place, Upstream, Weather } from '../../shared/types.ts'
 // Adds the owner key to each request.
 import { createKeyedFetch } from './keyedFetch.ts'
 // The error every failed call throws, and the code for "no answer at all".
@@ -92,9 +92,9 @@ export function fetchWeather(place: Place, signal?: AbortSignal): Promise<Upstre
   return request(`/weather?${pointQuery(place, true)}`, { signal })
 }
 
-// Upcoming events near a card's place.
-export function fetchEvents(place: Place, signal?: AbortSignal): Promise<Upstream<EventItem[]>> {
-  return request(`/events?${pointQuery(place, false)}`, { signal })
+// Upcoming holidays in a card's country and festivals near its place.
+export function fetchHolidays(place: Place, signal?: AbortSignal): Promise<Upstream<Holiday[]>> {
+  return request(`/holidays?${pointQuery(place, false)}&country=${encodeURIComponent(place.countryCode)}`, { signal })
 }
 
 // Starts a fresh dashboard with the samples; the old one is left for the server's clean-up.

@@ -1,4 +1,4 @@
-// When a card asks for its weather and events again on its own. The server keeps weather for
+// When a card asks for its weather and holidays again on its own. The server keeps weather for
 // 10 minutes, so asking more often would only get the same answer back.
 
 // Ten minutes, in milliseconds.

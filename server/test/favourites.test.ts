@@ -40,7 +40,7 @@ const FAR_PAST_END = 99;
 
 // A made-up place for each number, so a test can save many different ones.
 function place(n: number): Place {
-  return { placeId: n, name: `City ${n}`, region: null, country: 'Testland', latitude: 0, longitude: 0, timezone: 'UTC' };
+  return { placeId: n, name: `City ${n}`, region: null, country: 'Testland', countryCode: 'TL', latitude: 0, longitude: 0, timezone: 'UTC' };
 }
 
 // The names of the owner's cards, in dashboard order.

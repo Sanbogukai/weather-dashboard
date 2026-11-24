@@ -25,6 +25,7 @@ const FAVOURITE_COLUMNS = {
   name: true,
   region: true,
   country: true,
+  countryCode: true,
   latitude: true,
   longitude: true,
   timezone: true,

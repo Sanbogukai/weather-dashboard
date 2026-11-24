@@ -1,14 +1,15 @@
-// The upstream clients on their own: recorded Open-Meteo answers and hand-written Ticketmaster
-// answers map to the shared types, and every kind of failure becomes the right error code.
+// The upstream clients on their own: recorded Open-Meteo, Nager.Date and Wikidata answers
+// map to the shared types, and every kind of failure becomes the right error code.
 // A fake fetch stands in for the network.
 
 // Vitest's test functions.
 import { describe, expect, it } from 'vitest';
 // The fakes and the recorded answers.
-import { BAD_GATEWAY, NOW, SERVER_ERROR, TOO_MANY, fakeFetch, fixture, jsonResponse } from './helpers.ts';
+import { BAD_GATEWAY, NOW, NO_CONTENT, SERVER_ERROR, TOO_MANY, fakeFetch, fixture, jsonResponse } from './helpers.ts';
 // The code under test.
 import { DAYS, HOURS, PLACES_MAX, createOpenMeteo } from '../src/openMeteo.ts';
-import { EVENTS_MAX, RADIUS_KM, createTicketmaster } from '../src/ticketmaster.ts';
+import { createNagerDate } from '../src/nagerDate.ts';
+import { FESTIVALS_MAX, FESTIVAL_RADIUS_KM, createWikidata } from '../src/wikidata.ts';
 import { describeWeather } from '../src/weatherCodes.ts';
 // The error type the clients throw.
 import { ApiFailure } from '../src/errors.ts';
@@ -19,8 +20,6 @@ import { SAMPLES } from '../src/samples.ts';
 const LAT = 14.6;
 const LON = 120.98;
 const TZ = 'Asia/Manila';
-// A made-up key; the real one never appears in tests.
-const FAKE_KEY = 'fake-ticketmaster-key-123';
 // A time limit short enough for a test to wait it out.
 const SHORT_TIMEOUT_MS = 20;
 // Comfortably longer than that limit.
@@ -167,52 +166,95 @@ describe('getJson failures', () => {
   });
 });
 
-describe('Ticketmaster', () => {
-  it('maps an answer to events, with the search window and limits in the query', async () => {
-    const fake = fakeFetch(() => jsonResponse(fixture('ticketmaster-events.json')));
-    const events = await createTicketmaster({ apiKey: FAKE_KEY, fetchFn: fake.fetchFn }).eventsNear(LAT, LON, NOW);
-    expect(events).toEqual([
+describe('Nager.Date holidays', () => {
+  it('maps a recorded answer to holidays, marking regional ones', async () => {
+    const fake = fakeFetch(() => jsonResponse(fixture('nager-canada.json')));
+    const holidays = await createNagerDate({ fetchFn: fake.fetchFn }).nextHolidays('CA');
+    // The country code goes on the end of the address.
+    expect(fake.calls[0]).toBe('https://date.nager.at/api/v3/NextPublicHolidays/CA');
+    // Christmas is nationwide and its local name is the same, so there is none to show.
+    expect(holidays[0]).toEqual({
+      id: 'holiday:2026-12-25:Christmas Day',
+      kind: 'holiday',
+      name: 'Christmas Day',
+      localName: null,
+      date: '2026-12-25',
+      endDate: null,
+      regional: false,
+      url: null,
+      distanceKm: null,
+    });
+    // Boxing Day is kept in some provinces only, and its local name differs from the English one.
+    expect(holidays[1]).toMatchObject({ name: "St. Stephen's Day", localName: 'Boxing Day', regional: true });
+  });
+
+  it('answers a country it does not cover (204) with an empty list', async () => {
+    const fake = fakeFetch(() => new Response(null, { status: NO_CONTENT }));
+    expect(await createNagerDate({ fetchFn: fake.fetchFn }).nextHolidays('IN')).toEqual([]);
+  });
+
+  it('reports a 429 as upstream_quota', async () => {
+    const fake = fakeFetch(() => jsonResponse({}, TOO_MANY));
+    expect((await failureOf(createNagerDate({ fetchFn: fake.fetchFn }).nextHolidays('CA'))).code).toBe('upstream_quota');
+  });
+});
+
+describe('Wikidata festivals', () => {
+  it('maps a recorded answer to festivals, one per item, soonest first', async () => {
+    const fake = fakeFetch(() => jsonResponse(fixture('wikidata-festivals.json')));
+    const festivals = await createWikidata({ fetchFn: fake.fetchFn }).festivalsNear(LAT, LON, NOW);
+    expect(festivals.length).toBeGreaterThan(0);
+    expect(festivals.length).toBeLessThanOrEqual(FESTIVALS_MAX);
+    // Every festival is within the radius, has a page, and is not marked regional.
+    expect(festivals.every((festival) => festival.kind === 'festival' && festival.url !== null && !festival.regional)).toBe(true);
+    expect(festivals.every((festival) => (festival.distanceKm ?? Infinity) <= FESTIVAL_RADIUS_KM)).toBe(true);
+    // No item twice.
+    expect(new Set(festivals.map((festival) => festival.id)).size).toBe(festivals.length);
+    // Sorted by date, as the query asks.
+    expect(festivals.map((festival) => festival.date)).toEqual(festivals.map((festival) => festival.date).toSorted());
+    // The query names the point and the window, and the call says who is asking.
+    const url = new URL(fake.calls[0] ?? '');
+    expect(url.searchParams.get('query')).toContain(`Point(${LON} ${LAT})`);
+    expect(url.searchParams.get('query')).toContain('2026-11-23T00:00:00Z');
+    expect(fake.headers[0]?.['User-Agent']).toContain('weather-dashboard');
+  });
+
+  it('answers no rows with an empty list', async () => {
+    const fake = fakeFetch(() => jsonResponse({ results: { bindings: [] } }));
+    expect(await createWikidata({ fetchFn: fake.fetchFn }).festivalsNear(LAT, LON, NOW)).toEqual([]);
+  });
+
+  it('keeps the earliest row when a festival comes back twice', async () => {
+    // Two rows for one item, sorted by start as the query returns them.
+    const twice = (start: string) => ({
+      item: { value: 'http://www.wikidata.org/entity/Q1' },
+      itemLabel: { value: 'Test Fair' },
+      start: { value: start },
+      dist: { value: '3.4' },
+    });
+    const fake = fakeFetch(() => jsonResponse({ results: { bindings: [twice('2026-12-01T00:00:00Z'), twice('2026-12-05T00:00:00Z')] } }));
+    const festivals = await createWikidata({ fetchFn: fake.fetchFn }).festivalsNear(LAT, LON, NOW);
+    // One festival, its first date, the distance rounded, and the Wikidata page as its link.
+    expect(festivals).toEqual([
       {
-        id: 'vvG1fZ9fake001',
-        name: 'Ottawa Senators vs. Toronto Maple Leafs',
-        date: '2026-11-25',
-        time: '19:00',
-        venue: 'Canadian Tire Centre',
-        url: 'https://www.ticketmaster.ca/event/fake001',
-      },
-      // No time and no venue: both null rather than missing.
-      {
-        id: 'vvG1fZ9fake002',
-        name: 'Winter Lights Festival',
-        date: '2026-11-28',
-        time: null,
-        venue: null,
-        url: 'https://www.ticketmaster.ca/event/fake002',
+        id: 'festival:http://www.wikidata.org/entity/Q1',
+        kind: 'festival',
+        name: 'Test Fair',
+        localName: null,
+        date: '2026-12-01',
+        endDate: null,
+        regional: false,
+        url: 'http://www.wikidata.org/entity/Q1',
+        distanceKm: 3,
       },
     ]);
-    // The query: radius, count, soonest first, and a window from now to 14 days on.
-    const url = new URL(fake.calls[0] ?? '');
-    expect(url.searchParams.get('radius')).toBe(String(RADIUS_KM));
-    expect(url.searchParams.get('size')).toBe(String(EVENTS_MAX));
-    expect(url.searchParams.get('sort')).toBe('date,asc');
-    expect(url.searchParams.get('startDateTime')).toBe('2026-11-23T12:00:00Z');
-    expect(url.searchParams.get('endDateTime')).toBe('2026-12-07T12:00:00Z');
   });
 
-  it('answers no events with an empty list', async () => {
-    const fake = fakeFetch(() => jsonResponse(fixture('ticketmaster-none.json')));
-    expect(await createTicketmaster({ apiKey: FAKE_KEY, fetchFn: fake.fetchFn }).eventsNear(LAT, LON, NOW)).toEqual(
-      [],
+  it('reports a 429 as upstream_quota', async () => {
+    const fake = fakeFetch(() => jsonResponse({}, TOO_MANY));
+    expect((await failureOf(createWikidata({ fetchFn: fake.fetchFn }).festivalsNear(LAT, LON, NOW))).code).toBe(
+      'upstream_quota',
     );
-  });
-
-  it('reports a 429 as upstream_quota, without the key in the message', async () => {
-    const fake = fakeFetch(() => jsonResponse(fixture('ticketmaster-quota.json'), TOO_MANY));
-    const failure = await failureOf(
-      createTicketmaster({ apiKey: FAKE_KEY, fetchFn: fake.fetchFn }).eventsNear(LAT, LON, NOW),
-    );
-    expect(failure.code).toBe('upstream_quota');
-    expect(failure.message).not.toContain(FAKE_KEY);
   });
 });
 

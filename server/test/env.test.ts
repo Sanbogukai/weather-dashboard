@@ -8,8 +8,6 @@ import { loadEnv } from '../src/env.ts';
 
 // A valid local database URL, used as the base of each case.
 const DB = 'postgresql://user:pass@localhost:5432/weather_dev';
-// A made-up key; the real one never appears in tests.
-const FAKE_KEY = 'fake-ticketmaster-key-123';
 // The port used when PORT is not set.
 const DEFAULT_PORT = 3000;
 // A port as Render might set it, and the same port as environment text.
@@ -23,15 +21,14 @@ describe('loadEnv', () => {
   });
 
   it('treats empty values as unset, as a copied .env.example leaves them', () => {
-    const env = loadEnv({ DATABASE_URL: DB, DIRECT_URL: '', TICKETMASTER_API_KEY: '', PORT: '' });
+    const env = loadEnv({ DATABASE_URL: DB, DIRECT_URL: '', PORT: '' });
     expect(env.DIRECT_URL).toBeUndefined();
-    expect(env.TICKETMASTER_API_KEY).toBeUndefined();
     expect(env.PORT).toBe(DEFAULT_PORT);
   });
 
   it('reads the optional values when they are set', () => {
-    const env = loadEnv({ DATABASE_URL: DB, DIRECT_URL: DB, TICKETMASTER_API_KEY: FAKE_KEY, PORT: RENDER_PORT_TEXT });
-    expect(env.TICKETMASTER_API_KEY).toBe(FAKE_KEY);
+    const env = loadEnv({ DATABASE_URL: DB, DIRECT_URL: DB, PORT: RENDER_PORT_TEXT });
+    expect(env.DIRECT_URL).toBe(DB);
     // Text from the environment becomes a number.
     expect(env.PORT).toBe(RENDER_PORT);
   });

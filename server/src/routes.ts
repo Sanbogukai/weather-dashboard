@@ -1,4 +1,4 @@
-// The API's routes: owners, favourites, place search, weather and events. Each route checks its
+// The API's routes: owners, favourites, place search, weather and holidays. Each route checks its
 // input with Zod, finds the owner from the key header, and hands the work to favourites.ts or
 // to an upstream client through the cache.
 
@@ -10,6 +10,8 @@ import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 // The services the routes use, with defaults filled in.
 import type { AppDeps } from './app.ts';
+// Two capital letters, such as "PH".
+import { COUNTRY_CODE } from './countryCode.ts';
 // The error type every expected failure is thrown as.
 import { ApiFailure } from './errors.ts';
 // The favourite queries.
@@ -29,18 +31,20 @@ const HTTP_NOT_FOUND = 404;
 const HTTP_CONFLICT = 409;
 const HTTP_UNPROCESSABLE = 422;
 const HTTP_TOO_MANY = 429;
-const HTTP_UNAVAILABLE = 503;
 
 // How long each kind of answer is served from memory before it is fetched again. Weather
-// changes within the hour; events and city names hardly change in a day.
+// changes within the hour; holidays, festivals and city names hardly change in a day.
 const WEATHER_TTL_MINUTES = 10;
 export const WEATHER_TTL_MS = WEATHER_TTL_MINUTES * MINUTE_MS;
-export const EVENTS_TTL_MS = HOUR_MS;
+export const HOLIDAYS_TTL_MS = DAY_MS;
 export const PLACES_TTL_MS = DAY_MS;
 
 // Coordinates are rounded to 2 decimals (about 1 km) for the cache key: multiply by 100,
 // round, divide.
 const COORDINATE_SCALE = 100;
+
+// At most this many holidays and festivals together on one card.
+export const HOLIDAYS_MAX = 6;
 
 // Input limits.
 const QUERY_MIN = 2;
@@ -68,6 +72,8 @@ const timezone = z.string().max(TIMEZONE_MAX).refine(isTimeZone, 'Not a known ti
 // Latitude and longitude, from a query string (text) or a JSON body (a number).
 const latitude = z.coerce.number().min(-LATITUDE_MAX).max(LATITUDE_MAX);
 const longitude = z.coerce.number().min(-LONGITUDE_MAX).max(LONGITUDE_MAX);
+// A country code, from a query string or a JSON body.
+const countryCode = z.string().regex(COUNTRY_CODE, 'Not a two-letter country code');
 // A card size.
 const cardSize = z.enum(['SMALL', 'MEDIUM', 'LARGE']);
 
@@ -79,8 +85,9 @@ const placesQuery = z.object({
 // GET /weather.
 const weatherQuery = z.object({ lat: latitude, lon: longitude, tz: timezone });
 
-// GET /events.
-const eventsQuery = z.object({ lat: latitude, lon: longitude });
+// GET /holidays. The country is "" for a city saved before codes were stored; it gets
+// festivals only.
+const holidaysQuery = z.object({ lat: latitude, lon: longitude, country: z.union([z.literal(''), countryCode]) });
 
 // POST /favourites: a place exactly as /places returned it, and an optional size.
 const favouriteBody = z.object({
@@ -88,6 +95,7 @@ const favouriteBody = z.object({
   name: z.string().trim().min(1).max(NAME_MAX),
   region: z.string().trim().max(NAME_MAX).nullable(),
   country: z.string().trim().min(1).max(NAME_MAX),
+  countryCode,
   latitude,
   longitude,
   timezone,
@@ -168,7 +176,7 @@ export function apiRouter(deps: AppDeps): Router {
   });
 
   // Upstream-backed requests per owner per minute. Counted by owner, not IP, so a shared
-  // network does not share one allowance. Places, weather and events share it.
+  // network does not share one allowance. Places, weather and holidays share it.
   const upstreamLimiter = rateLimit({
     windowMs: MINUTE_MS,
     limit: deps.upstreamLimit,
@@ -242,19 +250,34 @@ export function apiRouter(deps: AppDeps): Router {
     res.json(await deps.cache.get(key, WEATHER_TTL_MS, () => deps.openMeteo.forecast(lat, lon, query.tz)));
   });
 
-  // Events near a point, through the cache; 503 when there is no Ticketmaster key.
-  router.get('/events', requireOwner, upstreamLimiter, async (req, res) => {
-    const query = check(eventsQuery, req.query);
-    // Checked after the input, so a bad request is still a 400 on a server without a key.
-    const { ticketmaster } = deps;
-    if (ticketmaster === null) {
-      throw new ApiFailure(HTTP_UNAVAILABLE, 'events_not_configured', 'Events are not set up on this server');
-    }
+  // The country's holidays and the festivals near a point, each through the cache, merged.
+  router.get('/holidays', requireOwner, upstreamLimiter, async (req, res) => {
+    const { country, ...query } = check(holidaysQuery, req.query);
     const lat = round(query.lat);
     const lon = round(query.lon);
-    const key = `events:${lat},${lon}`;
-    // The window starts at the moment of the fetch; an hour-old list is still "the next 14 days".
-    res.json(await deps.cache.get(key, EVENTS_TTL_MS, () => ticketmaster.eventsNear(lat, lon, deps.now())));
+    // Both at once. Holidays are per country, so every city in one country shares an entry;
+    // no country means no holidays to look up.
+    const [holidays, festivals] = await Promise.allSettled([
+      country === ''
+        ? Promise.resolve(null)
+        : deps.cache.get(`holidays:${country}`, HOLIDAYS_TTL_MS, () => deps.nagerDate.nextHolidays(country)),
+      deps.cache.get(`festivals:${lat},${lon}`, HOLIDAYS_TTL_MS, () => deps.wikidata.festivalsNear(lat, lon, deps.now())),
+    ]);
+    // Holidays are the main part: if they fail, the whole answer fails and the card offers Retry.
+    if (holidays.status === 'rejected') throw holidays.reason;
+    // Festivals are extra: if Wikidata fails, the card shows holidays alone. The failure is
+    // logged, to spot an outage.
+    if (festivals.status === 'rejected') console.error('Festivals failed; holidays sent alone:', festivals.reason);
+    // The parts that answered.
+    const parts = [holidays.value, festivals.status === 'fulfilled' ? festivals.value : null].filter((part) => part !== null);
+    // Both lists in one, soonest first, cut to the card's limit. ISO dates sort as text.
+    const merged = parts
+      .flatMap((part) => part.data)
+      .toSorted((a, b) => a.date.localeCompare(b.date))
+      .slice(0, HOLIDAYS_MAX);
+    // The answer is as old as its oldest part, and stale if either part is.
+    const fetchedAt = parts.map((part) => part.fetchedAt).toSorted()[0] ?? deps.now().toISOString();
+    res.json({ data: merged, fetchedAt, stale: parts.some((part) => part.stale) });
   });
 
   return router;

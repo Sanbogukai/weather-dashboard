@@ -17,8 +17,10 @@ import { type Cache, createCache } from './cache.ts';
 import { type OpenMeteo, createOpenMeteo } from './openMeteo.ts';
 // The API routes.
 import { apiRouter } from './routes.ts';
-// The Ticketmaster client's type; the client itself is built in index.ts, only with a key.
-import type { Ticketmaster } from './ticketmaster.ts';
+// The holidays client and its type.
+import { type NagerDate, createNagerDate } from './nagerDate.ts';
+// The festivals client and its type.
+import { type Wikidata, createWikidata } from './wikidata.ts';
 
 // The largest JSON body accepted. A favourite is a place and a size, so 16 kB is plenty and
 // stops anyone posting megabytes at the API.
@@ -34,7 +36,7 @@ const HTTP_UNAVAILABLE = 503;
 const TRUSTED_PROXIES = 3;
 
 // The default limits: new owners per IP per hour, and upstream-backed requests (places,
-// weather, events) per owner per minute.
+// weather, holidays) per owner per minute.
 const OWNER_LIMIT = 10;
 const UPSTREAM_LIMIT = 120;
 
@@ -46,8 +48,10 @@ export interface AppOptions {
   now?: () => Date;
   // City search and forecasts.
   openMeteo?: OpenMeteo;
-  // Events; null when there is no API key, which turns the events route into a 503.
-  ticketmaster?: Ticketmaster | null;
+  // Public holidays by country.
+  nagerDate?: NagerDate;
+  // Festivals near a point.
+  wikidata?: Wikidata;
   // The upstream cache; one per app by default.
   cache?: Cache;
   ownerLimit?: number;
@@ -72,7 +76,8 @@ export function createApp(options: AppOptions): Express {
     db: options.db,
     now,
     openMeteo: options.openMeteo ?? createOpenMeteo(),
-    ticketmaster: options.ticketmaster ?? null,
+    nagerDate: options.nagerDate ?? createNagerDate(),
+    wikidata: options.wikidata ?? createWikidata(),
     cache: options.cache ?? createCache({ now }),
     ownerLimit: options.ownerLimit ?? OWNER_LIMIT,
     upstreamLimit: options.upstreamLimit ?? UPSTREAM_LIMIT,
@@ -105,7 +110,7 @@ export function createApp(options: AppOptions): Express {
     }
   });
 
-  // Owners, favourites, places, weather and events.
+  // Owners, favourites, places, weather and holidays.
   app.use('/api', apiRouter(deps));
 
   // Unknown API routes get JSON, not Express's HTML page. It runs only when no route
@@ -119,8 +124,8 @@ export function createApp(options: AppOptions): Express {
   const handleError: ErrorRequestHandler = (err, _req, res, _next) => {
     // Our own expected failures carry their status, code and issues.
     if (err instanceof ApiFailure) {
-      // Upstream failures are logged, to spot an outage; client mistakes (4xx) and the expected
-      // "events are not set up" answer are not, or every card would add a log line.
+      // Upstream failures are logged, to spot an outage; client mistakes (4xx) are not, or
+      // every typo would add a log line.
       if (err.code.startsWith('upstream_')) console.error(`${err.code}: ${err.message}`);
       // Sends the failure as it was described.
       res.status(err.status).json(errorBody(err.code, err.message, err.issues));

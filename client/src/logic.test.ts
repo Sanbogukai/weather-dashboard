@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { Favourite } from '../../shared/types.ts'
 // The code under test.
 import { convertTemperature, formatTemperature, formatWind, loadUnit, saveUnit, UNIT_KEY } from './units.ts'
-import { ageLabel, eventWhen, hourLabel, localClock, placeLine, weekdayLabel } from './format.ts'
+import { ageLabel, dayRange, hourLabel, localClock, placeLine, weekdayLabel } from './format.ts'
 import { messageFor } from './messages.ts'
 import { ApiError, UNREACHABLE } from './errors.ts'
 import { bandClass } from './tint.ts'
@@ -45,6 +45,7 @@ const CARDS: Favourite[] = ['Manila', 'Ottawa', 'Tokyo'].map((name, position) =>
   name,
   region: null,
   country: 'Somewhere',
+  countryCode: 'SW',
   latitude: 0,
   longitude: 0,
   timezone: 'UTC',
@@ -94,8 +95,9 @@ describe('format', () => {
   })
 
   it('writes event dates with and without a time', () => {
-    expect(eventWhen('2026-11-25', '19:00', LOCALE)).toBe('Wed, Nov 25, 7:00 PM')
-    expect(eventWhen('2026-11-25', null, LOCALE)).toBe('Wed, Nov 25')
+    expect(dayRange('2026-11-25', null, LOCALE)).toBe('Wed, Nov 25')
+    expect(dayRange('2026-11-25', '2026-11-25', LOCALE)).toBe('Wed, Nov 25')
+    expect(dayRange('2026-11-25', '2026-11-29', LOCALE)).toBe('Wed, Nov 25 – Sun, Nov 29')
   })
 
   it("tells a place's own time", () => {
@@ -118,7 +120,7 @@ describe('messages', () => {
   it('names the service that failed', () => {
     const slow = new ApiError('x', BAD_GATEWAY, 'upstream_timeout')
     expect(messageFor(slow, 'weather')).toBe('The weather service is slow right now')
-    expect(messageFor(slow, 'events')).toBe('The events service is slow right now')
+    expect(messageFor(slow, 'holidays')).toBe('The holidays service is slow right now')
   })
 
   it("uses the server's message for codes it has no wording for", () => {

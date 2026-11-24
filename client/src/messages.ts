@@ -5,12 +5,12 @@
 import { ApiError, UNREACHABLE } from './errors.ts'
 
 // Which part of a card asked: the wording names the service behind it.
-export type Part = 'weather' | 'events' | 'page'
+export type Part = 'weather' | 'holidays' | 'page'
 
 // The service each part depends on, as people would say it.
 const SERVICE: Record<Part, string> = {
   weather: 'The weather service',
-  events: 'The events service',
+  holidays: 'The holidays service',
   page: 'The server',
 }
 
@@ -20,7 +20,6 @@ const WORDING: Record<string, (service: string) => string> = {
   upstream_timeout: (service) => `${service} is slow right now`,
   upstream_quota: (service) => `${service} has reached its limit for now`,
   upstream_error: (service) => `${service} had a problem`,
-  events_not_configured: () => 'Events are off on this server',
   rate_limited: () => 'Too many requests. Wait a minute and try again',
   [UNREACHABLE]: () => "Can't reach the server",
 }

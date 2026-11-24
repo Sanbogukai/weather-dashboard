@@ -1,8 +1,7 @@
 # Runs on every push and pull request, so a break shows as a red cross on GitHub instead of
 # being found later. Two jobs run side by side: the server's type check and tests against a real
-# PostgreSQL 18, and the client's type check, tests and production build. There is no
-# Ticketmaster key here on purpose: the server must run without it, and no test may reach the
-# real API.
+# PostgreSQL 18, and the client's type check, tests and production build. No test reaches a
+# real upstream API: every answer comes from a recorded fixture through a fake fetch.
 name: CI
 
 on:

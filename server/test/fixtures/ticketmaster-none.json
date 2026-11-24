@@ -1,4 +1,0 @@
-{
-  "_links": { "self": { "href": "/discovery/v2/events.json?size=6&page=0" } },
-  "page": { "size": 6, "totalElements": 0, "totalPages": 0, "number": 0 }
-}

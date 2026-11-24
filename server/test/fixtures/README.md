@@ -8,6 +8,5 @@ network.
 | `geocoding-manila.json` | Recorded from Open-Meteo geocoding, `name=Manila&count=8`, on 2026-11-23. |
 | `geocoding-none.json` | Recorded from Open-Meteo geocoding for a name with no match. |
 | `forecast-manila.json` | Recorded from the Open-Meteo forecast for Manila, with the fields `openMeteo.ts` asks for, on 2026-11-23. |
-| `ticketmaster-events.json` | Hand-written in the shape of Ticketmaster's Discovery API documentation, with fake ids and URLs, until the API key arrives. Replace it with a recorded answer (key removed) then. |
-| `ticketmaster-none.json` | Hand-written: the answer for a search with no events, which has no `_embedded`. |
-| `ticketmaster-quota.json` | Hand-written: the body Ticketmaster sends with its `429` quota error. |
+| `nager-canada.json` | Recorded from Nager.Date, `NextPublicHolidays/CA`, on 2026-11-24. Canada has both nationwide and provincial holidays, so it covers the Regional tag. |
+| `wikidata-festivals.json` | Recorded from the Wikidata query service on 2026-11-24, with the query `festivalQuery` builds for Tokyo (35.69, 139.69) from 2026-11-23 to 2027-11-23. One festival in two rows (one per start date), which covers the de-duplication. Wikidata has few dated festivals with coordinates, so most cities get none. |

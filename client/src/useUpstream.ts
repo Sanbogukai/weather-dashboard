@@ -1,4 +1,4 @@
-// One part of a card (its weather, or its events): loads when the card appears, refreshes on its
+// One part of a card (its weather, or its holidays): loads when the card appears, refreshes on its
 // own every 10 minutes while the page is visible, catches up when the tab is shown again, and
 // can be retried by hand. A refresh keeps the old answer on screen until the new one arrives.
 

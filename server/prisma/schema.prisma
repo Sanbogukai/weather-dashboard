@@ -1,7 +1,7 @@
 // The database schema: every table, column and relation. `npm run migrate` turns changes here
 // into a SQL migration under prisma/migrations, and `prisma generate` turns it into a typed
-// client in src/generated/prisma. Weather and events are not stored here: they change by the
-// hour and belong to the upstream APIs. Only the user's own choices are kept.
+// client in src/generated/prisma. Weather, holidays and festivals are not stored here: they
+// change and belong to the upstream APIs. Only the user's own choices are kept.
 
 // The typed client. Written as TypeScript ES modules with .ts imports, so Node can run it
 // directly by stripping the types, like the rest of the server.
@@ -52,6 +52,9 @@ model Favourite {
   region    String?
   // "Philippines"
   country   String
+  // "PH": the ISO 3166-1 alpha-2 code, which the holidays service looks countries up by. Rows
+  // saved before this column existed hold "" and show no holidays.
+  countryCode String @default("") @db.VarChar(2)
   latitude  Float
   longitude Float
   // "Asia/Manila", for local times on the card.

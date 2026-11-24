@@ -25,6 +25,9 @@ export interface Place {
   // State or province, when the geocoder has one.
   region: string | null;
   country: string;
+  // ISO 3166-1 alpha-2, such as "PH", for the holidays lookup. "" on cities saved before the
+  // code was stored.
+  countryCode: string;
   latitude: number;
   longitude: number;
   // IANA time zone, such as "Asia/Manila", for local times on the card.
@@ -79,16 +82,27 @@ export interface Weather {
   daily: Array<Conditions & { date: string; high: number; low: number }>;
 }
 
-// One upcoming event near a place.
-export interface EventItem {
+// What a dated entry on the card is: a public holiday in the city's country, or a festival
+// near the city.
+export type HolidayKind = 'holiday' | 'festival';
+
+// One upcoming holiday or festival.
+export interface Holiday {
   id: string;
+  kind: HolidayKind;
+  // The English name.
   name: string;
-  // Local date, and local time when the event has one.
+  // The name in the country's language, when it differs, such as "Araw ng Pasko".
+  localName: string | null;
+  // The first day, YYYY-MM-DD, and the last day for a festival that runs several days.
   date: string;
-  time: string | null;
-  venue: string | null;
-  // The event's Ticketmaster page.
-  url: string;
+  endDate: string | null;
+  // A holiday kept only in some states or provinces; always false for a festival.
+  regional: boolean;
+  // A page about it (Wikipedia, else Wikidata) for a festival; null for a holiday.
+  url: string | null;
+  // How far the festival is from the city, rounded to whole kilometres; null for a holiday.
+  distanceKm: number | null;
 }
 
 // An upstream answer as our API sends it: the data, when it was fetched (ISO), and whether it

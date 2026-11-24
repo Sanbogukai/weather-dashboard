@@ -1,11 +1,11 @@
 // One favourite city on the dashboard. The header shows at once from the saved place; the
-// weather and events parts load on their own below it. The header's band takes its colour from
+// weather and holidays parts load on their own below it. The header's band takes its colour from
 // the current weather, by day or night in that city.
 
 // The shapes drawn here.
 import type { CardSize, Favourite } from '../../../shared/types.ts'
 // The two server calls a card makes.
-import { fetchEvents, fetchWeather } from '../api.ts'
+import { fetchHolidays, fetchWeather } from '../api.ts'
 // Loading, refresh and retry for each part.
 import { useUpstream } from '../useUpstream.ts'
 // The band's colour class.
@@ -16,7 +16,7 @@ import { localClock, placeLine } from '../format.ts'
 import type { Unit } from '../units.ts'
 // The two parts.
 import { WeatherPart } from './WeatherPart.tsx'
-import { EventsPart } from './EventsPart.tsx'
+import { HolidaysPart } from './HolidaysPart.tsx'
 
 // The size switch: the size, its letter and what a screen reader says.
 const SIZES: Array<{ size: CardSize; letter: string; name: string }> = [
@@ -40,10 +40,10 @@ interface CardProps {
 // A card.
 export function Card({ card, count, unit, now, onResize, onMove, onRemove }: CardProps) {
   // One key per place, so a part reloads only if the place itself changes.
-  const placeKey = `${card.latitude},${card.longitude},${card.timezone}`
+  const placeKey = `${card.latitude},${card.longitude},${card.timezone},${card.countryCode}`
   // The two parts, each with its own loading, error and refresh.
   const weather = useUpstream(`weather:${placeKey}`, (signal) => fetchWeather(card, signal))
-  const events = useUpstream(`events:${placeKey}`, (signal) => fetchEvents(card, signal))
+  const holidays = useUpstream(`holidays:${placeKey}`, (signal) => fetchHolidays(card, signal))
   // The band colour once the weather is in; a neutral band until then.
   const current = weather.value?.data.current
   const band = current ? bandClass(current.icon, current.isDay) : 'band-none'
@@ -96,7 +96,7 @@ export function Card({ card, count, unit, now, onResize, onMove, onRemove }: Car
       </header>
       <div className="card-body">
         <WeatherPart part={weather} size={card.size} unit={unit} now={now} />
-        <EventsPart part={events} size={card.size} now={now} />
+        <HolidaysPart part={holidays} size={card.size} now={now} />
       </div>
     </article>
   )

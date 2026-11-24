@@ -1,6 +1,6 @@
 // Shared set-up for the API tests: one connection to the test database, emptied before each
 // test, a fresh app over it with a fixed clock, and fakes for everything upstream, so no test
-// ever reaches Open-Meteo or Ticketmaster.
+// ever reaches Open-Meteo, Nager.Date or Wikidata.
 
 // Reads the recorded upstream answers.
 import { readFileSync } from 'node:fs';
@@ -20,6 +20,8 @@ import { OWNER_HEADER } from '../src/routes.ts';
 import type { Sample } from '../src/samples.ts';
 // The client types a fake must match.
 import type { OpenMeteo } from '../src/openMeteo.ts';
+import type { NagerDate } from '../src/nagerDate.ts';
+import type { Wikidata } from '../src/wikidata.ts';
 import type { FetchFn } from '../src/upstream.ts';
 
 // The HTTP status codes the tests expect, by name, so each check says what it means.
@@ -60,16 +62,19 @@ export function fixture(name: string): unknown {
 }
 
 // A fake fetch. `respond` builds the answer for each URL; every URL asked for is kept in
-// `calls`, so a test can check what would have been sent.
+// `calls`, and its request headers in `headers`, so a test can check what would have been sent.
 export function fakeFetch(respond: (url: string) => Response | Promise<Response>) {
   const calls: string[] = [];
-  const fetchFn: FetchFn = async (input) => {
+  const headers: Array<Record<string, string>> = [];
+  const fetchFn: FetchFn = async (input, init) => {
     // fetch accepts a string, a URL or a Request; the clients only ever pass a string.
     const url = String(input);
     calls.push(url);
+    // The clients pass headers as a plain object.
+    headers.push({ ...(init?.headers as Record<string, string> | undefined) });
     return respond(url);
   };
-  return { fetchFn, calls };
+  return { fetchFn, calls, headers };
 }
 
 // A JSON answer with a status, as a fake fetch returns it.
@@ -85,6 +90,18 @@ export const noOpenMeteo: OpenMeteo = {
   },
   forecast: async () => {
     throw new Error('This test did not expect a forecast');
+  },
+};
+
+// Holidays and festivals clients that fail the test if anything calls them, for the same reason.
+export const noNagerDate: NagerDate = {
+  nextHolidays: async () => {
+    throw new Error('This test did not expect a holidays lookup');
+  },
+};
+export const noWikidata: Wikidata = {
+  festivalsNear: async () => {
+    throw new Error('This test did not expect a festivals lookup');
   },
 };
 
@@ -104,9 +121,9 @@ export function newOwner(samples: Sample[] = []): Promise<string> {
 
 // Builds a fresh app over the shared test database. `overrides` can swap any option.
 export function makeApp(overrides: Partial<AppOptions> = {}) {
-  // The fixed clock, the failing Open-Meteo and no Ticketmaster first, so a test's own
+  // The fixed clock and the failing upstream clients first, so a test's own
   // overrides still win and no test reaches the internet by accident.
-  const app = createApp({ db, now: () => NOW, openMeteo: noOpenMeteo, ticketmaster: null, ...overrides });
+  const app = createApp({ db, now: () => NOW, openMeteo: noOpenMeteo, nagerDate: noNagerDate, wikidata: noWikidata, ...overrides });
   // `api` is a Supertest agent bound to this app.
   return { api: request(app), app };
 }

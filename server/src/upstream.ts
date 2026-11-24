@@ -5,7 +5,8 @@
 //   upstream_quota    the service says we have used up our calls (HTTP 429)
 //   upstream_error    anything else: no connection, a 5xx, bad JSON, or an unexpected shape
 //
-// The URL is never logged or put in a message, because Ticketmaster's carries the API key.
+// The URL is never logged or put in a message, so a service that takes a key in the query
+// string cannot leak it through a log.
 
 // Declares the shape of each answer.
 import type { z } from 'zod';
@@ -24,6 +25,8 @@ export const UPSTREAM_TIMEOUT_MS = 5000;
 const HTTP_BAD_GATEWAY = 502;
 // The status a service sends when we have made too many calls.
 const HTTP_TOO_MANY = 429;
+// The status for a success with no body, which Nager.Date sends for a country it does not cover.
+const HTTP_NO_CONTENT = 204;
 
 // What getJson needs for one call.
 export interface UpstreamCall<T> {
@@ -37,6 +40,10 @@ export interface UpstreamCall<T> {
   service: string;
   // The time limit; UPSTREAM_TIMEOUT_MS unless a test shortens it.
   timeoutMs: number;
+  // The answer to use for a 204 No Content; without it, a 204 is an error like any empty body.
+  noContent?: T;
+  // Extra request headers, such as the User-Agent Wikidata asks every client to send.
+  headers?: Record<string, string>;
 }
 
 // Makes the failure for one code, with a message that names the service.
@@ -45,13 +52,13 @@ function failure(code: string, message: string): ApiFailure {
 }
 
 // Sends the GET and returns the checked answer, or throws an ApiFailure.
-export async function getJson<T>({ fetchFn, url, schema, service, timeoutMs }: UpstreamCall<T>): Promise<T> {
+export async function getJson<T>({ fetchFn, url, schema, service, timeoutMs, noContent, headers }: UpstreamCall<T>): Promise<T> {
   // The response, once it arrives.
   let response: Response;
   try {
     // AbortSignal.timeout cancels the request when the time is up, and the fetch then throws
     // an error named TimeoutError.
-    response = await fetchFn(url, { signal: AbortSignal.timeout(timeoutMs), headers: { Accept: 'application/json' } });
+    response = await fetchFn(url, { signal: AbortSignal.timeout(timeoutMs), headers: { Accept: 'application/json', ...headers } });
   } catch (err) {
     // Too slow.
     if (err instanceof Error && err.name === 'TimeoutError') {
@@ -63,6 +70,8 @@ export async function getJson<T>({ fetchFn, url, schema, service, timeoutMs }: U
 
   // Our allowance with the service is used up for now.
   if (response.status === HTTP_TOO_MANY) throw failure('upstream_quota', `${service} has had too many requests today`);
+  // Nothing to say, and the caller knows what that means.
+  if (response.status === HTTP_NO_CONTENT && noContent !== undefined) return noContent;
   // Any other answer that is not a success, such as a 500 or a 403 for a bad key.
   if (!response.ok) throw failure('upstream_error', `${service} answered with an error`);
 

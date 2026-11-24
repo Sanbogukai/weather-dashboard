@@ -29,8 +29,6 @@ const EnvSchema = z.object({
   // Optional: Neon's direct URL, read by prisma.config.ts for migrations. Checked here too,
   // so a bad paste is caught when the server starts.
   DIRECT_URL: z.preprocess(blankToUndefined, databaseUrl.optional()),
-  // Optional: without it, events are off and weather still works.
-  TICKETMASTER_API_KEY: z.preprocess(blankToUndefined, z.string().trim().min(1).optional()),
   // Optional: the port, a whole number from 1 to 65535. Environment values are text, so
   // z.coerce turns "10000" into 10000 first.
   PORT: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).max(MAX_PORT).default(DEFAULT_PORT)),
