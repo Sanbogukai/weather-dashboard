@@ -36,7 +36,7 @@ jobs:
       DATABASE_URL: postgresql://weather:weather@localhost:5432/weather_test
     steps:
       # Fetches the repository's code.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Installs the Node version pinned in .node-version, and caches npm downloads
       # between runs using the lock file as the key.
       - uses: actions/setup-node@v4
@@ -62,7 +62,7 @@ jobs:
         working-directory: client
     steps:
       # Fetches the repository's code; the client also reads shared/types.ts from it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # The same Node version as the server, with npm downloads cached on the client's lock file.
       - uses: actions/setup-node@v4
         with:
