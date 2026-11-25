@@ -1,0 +1,36 @@
+# Dependabot checks the dependencies every Monday and opens pull requests for updates.
+# Minor and patch bumps come together as one pull request per folder, so a week of small
+# updates is one review instead of ten; a major version gets a pull request of its own,
+# because it can break things. Security fixes are separate: with Dependabot security
+# updates turned on in the repository settings, they open as soon as an advisory appears.
+version: 2
+updates:
+  # The server's npm packages.
+  - package-ecosystem: npm
+    directory: /server
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      server-minor-and-patch:
+        update-types: [minor, patch]
+
+  # The client's npm packages.
+  - package-ecosystem: npm
+    directory: /client
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      client-minor-and-patch:
+        update-types: [minor, patch]
+
+  # The actions the CI workflow uses, such as actions/checkout.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        update-types: [minor, patch]

@@ -46,6 +46,9 @@ jobs:
           cache-dependency-path: server/package-lock.json
       # Installs exactly what the lock file lists; postinstall generates the Prisma client.
       - run: npm ci
+      # Fails the build on a high or critical advisory in a package that ships to Render.
+      # Dev-only tools (Vite, Vitest, TypeScript) are left out, since they never run in production.
+      - run: npm audit --omit=dev --audit-level=high
       # tsc --noEmit: Node never checks types, so this step does.
       - run: npm run typecheck
       # Vitest, once, without watching. Its global setup applies the migrations first.
@@ -68,6 +71,9 @@ jobs:
           cache-dependency-path: client/package-lock.json
       # Installs exactly what the lock file lists.
       - run: npm ci
+      # Fails the build on a high or critical advisory in a package that ships to Render.
+      # Dev-only tools (Vite, Vitest, TypeScript) are left out, since they never run in production.
+      - run: npm audit --omit=dev --audit-level=high
       # tsc -b over the app and the Vite config.
       - run: npm run typecheck
       # Vitest, once, on the pure logic modules.
