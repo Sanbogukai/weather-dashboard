@@ -5,6 +5,8 @@
 import express, { type ErrorRequestHandler, type Express } from 'express';
 // Sets the security headers (Content-Security-Policy and friends) on every answer.
 import helmet from 'helmet';
+// Joins folder and file names for the built client.
+import { join } from 'node:path';
 // The database client type.
 import type { Db } from './db.ts';
 // The error shape every failure is sent in, shared with the client.
@@ -40,8 +42,14 @@ const TRUSTED_PROXIES = 3;
 const OWNER_LIMIT = 10;
 const UPSTREAM_LIMIT = 120;
 
+// How long a browser may keep a hashed asset. Vite puts a hash of the content in each asset's
+// name, so a changed file gets a new name and a year is safe.
+const ASSET_MAX_AGE = '1y';
+
 // What the caller passes in. Only the database is required; everything else has a real default,
-// and tests swap any of them (a fixed clock, fake upstream clients, small limits).
+// and tests swap any of them (a fixed clock, fake upstream clients, small limits). clientDir is
+// the built client (client/dist); without it the app serves the API alone, as in development,
+// where Vite serves the client.
 export interface AppOptions {
   db: Db;
   // The clock, read for every "now" the app needs.
@@ -56,10 +64,12 @@ export interface AppOptions {
   cache?: Cache;
   ownerLimit?: number;
   upstreamLimit?: number;
+  clientDir?: string;
 }
 
-// The options with every default filled in, as the routes see them.
-export type AppDeps = Required<AppOptions>;
+// The options with every default filled in, as the routes see them. clientDir is not a
+// service the routes use, so it is left out.
+export type AppDeps = Required<Omit<AppOptions, 'clientDir'>>;
 
 // Builds the error body every failure uses.
 function errorBody(code: string, message: string, issues?: ApiError['error']['issues']): ApiError {
@@ -119,6 +129,9 @@ export function createApp(options: AppOptions): Express {
     res.status(HTTP_NOT_FOUND).json(errorBody('not_found', `No route for ${req.method} ${req.originalUrl}`));
   });
 
+  // The built client, after the API so /api never falls through to the page.
+  if (options.clientDir) serveClient(app, options.clientDir);
+
   // Errors always come back as JSON in the one shape. Express knows this is the error handler
   // because it takes four arguments; `_next` is unused but must be listed.
   const handleError: ErrorRequestHandler = (err, _req, res, _next) => {
@@ -146,4 +159,24 @@ export function createApp(options: AppOptions): Express {
 
   // The caller decides whether to listen (index.ts) or to test it (Supertest).
   return app;
+}
+
+// Serves the single-page client from dir: hashed assets, then the other files, then
+// index.html for every other page address.
+function serveClient(app: Express, dir: string): void {
+  // Hashed files, cached for a year. A missing one is a plain 404 (fallthrough: false), not
+  // the page, so a stale script reference fails loudly instead of loading HTML as JavaScript.
+  app.use(
+    '/assets',
+    express.static(join(dir, 'assets'), { immutable: true, maxAge: ASSET_MAX_AGE, fallthrough: false }),
+  );
+  // Unhashed files such as favicon.svg, revalidated each time. index: false leaves / to the
+  // fallback below, so index.html always goes out with the same no-cache header.
+  app.use(express.static(dir, { index: false }));
+  // Every other GET is a page of the app: send index.html, and tell the browser to check
+  // for a new one each time, so a deploy shows at once. cacheControl: false stops sendFile
+  // from writing its own Cache-Control over ours.
+  app.get('/{*page}', (_req, res) => {
+    res.sendFile('index.html', { root: dir, cacheControl: false, headers: { 'Cache-Control': 'no-cache' } });
+  });
 }

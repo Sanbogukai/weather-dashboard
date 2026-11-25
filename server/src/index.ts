@@ -6,6 +6,10 @@
 
 // Builds the Express app with every route attached.
 import { createApp } from './app.ts';
+// Checks whether the client has been built.
+import { existsSync } from 'node:fs';
+// Finds the built client from this file's folder.
+import { resolve } from 'node:path';
 // Makes the Prisma client.
 import { createDb } from './db.ts';
 // Reads and checks the environment.
@@ -18,8 +22,14 @@ const env = loadEnv();
 
 // One client for the whole app.
 const db = createDb(env.DATABASE_URL);
-// The app over that database, with the real clock, upstream clients and cache (the defaults).
-const app = createApp({ db });
+// The built client, two folders up from server/src. Render's build step makes it; in
+// development it is usually missing, because Vite serves the client, and then the app
+// serves the API alone.
+const builtClient = resolve(import.meta.dirname, '../../client/dist');
+const clientDir = existsSync(builtClient) ? builtClient : undefined;
+// The app over that database, with the real clock, upstream clients and cache (the defaults),
+// and the client when it is built.
+const app = createApp({ db, clientDir });
 
 // Removes stale owners and logs how many. A failure is logged and the server keeps running;
 // the next day's run tries again.

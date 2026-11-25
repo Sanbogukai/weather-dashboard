@@ -1,0 +1,30 @@
+# Render Blueprint: the live site as one free web service. Render reads this file when the
+# service is created from the repository (New > Blueprint), and on every later sync.
+# The database is not here: it lives at Neon, and its two addresses are entered by hand.
+services:
+  - type: web
+    name: weather-dashboard
+    # Node, with the version from .node-version at the repository root.
+    runtime: node
+    # Virginia, next to Neon's AWS us-east-1, so each query stays in one region.
+    region: virginia
+    plan: free
+    # Every command starts at the repository root. The client is built first so the server
+    # can serve client/dist. The server's npm ci also generates the Prisma client
+    # (postinstall), and migrate deploy then applies any new migrations to Neon, through
+    # DIRECT_URL, before the new version starts.
+    buildCommand: cd client && npm ci && npm run build && cd ../server && npm ci && npx prisma migrate deploy
+    startCommand: cd server && npm start
+    # Render sends traffic to a new version only once this answers 200, which needs the
+    # database to answer too.
+    healthCheckPath: /api/health
+    # Deploys a push only after GitHub Actions passes, so a red build never goes live.
+    autoDeployTrigger: checksPass
+    envVars:
+      # Neon's pooled connection string, used by the running app. sync: false keeps the
+      # value out of this file; Render asks for it when the Blueprint is first created.
+      - key: DATABASE_URL
+        sync: false
+      # Neon's direct (unpooled) connection string, used only by prisma migrate deploy.
+      - key: DIRECT_URL
+        sync: false
